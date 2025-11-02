@@ -1,0 +1,120 @@
+/**
+ * @fileoverview Firestore Security Rules for AIgility application.
+ *
+ * Core Philosophy:
+ * This ruleset enforces a strict user-ownership model for user profiles, projects, and stories,
+ * ensuring that only the authenticated user can access their own data. All access control is
+ * path-based to avoid costly `get()` calls. Tags are publicly readable, but write access is restricted
+ * to prevent unauthorized modification.
+ *
+ * Data Structure:
+ * - /users/{userId}: Stores user profiles, accessible only to the owning user.
+ * - /users/{userId}/projects/{projectId}: Stores projects owned by a specific user.
+ * - /users/{userId}/projects/{projectId}/stories/{storyId}: Stores stories belonging to a project.
+ * - /tags/{tagId}: Stores tags, publicly readable, but write-protected.
+ *
+ * Key Security Decisions:
+ * - User listing is explicitly disallowed to protect user privacy.
+ * - Public read access is granted for tags to enable shared tag libraries.
+ * - Data consistency is enforced by validating the `userId` and `projectId` fields on create and update
+ *   operations to prevent unauthorized data manipulation.
+ *
+ * Denormalization for Authorization:
+ * The `userId` field is denormalized in the Project and Story entities to allow direct ownership
+ * checks without additional reads.
+ *
+ * Structural Segregation:
+ * Public and private data are separated into different collections to optimize read performance
+ * and security. For example, user profiles are stored under `/users/{userId}` for private access,
+ * while tags are stored in the top-level `/tags` collection for public read access.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    /**
+     * @description Grants access to user profile information only to the owning user.
+     * @path /users/{userId}
+     * @allow (create) - Allows a user to create their own profile if the user ID matches their auth ID (e.g., creating /users/user_abc with auth.uid = user_abc).
+     * @allow (get, update, delete) - Allows a user to read, update, and delete their own profile.
+     * @deny (create) - Denies profile creation if the user ID does not match the auth ID (e.g., creating /users/user_xyz with auth.uid = user_abc).
+     * @deny (list) - Denies listing all users for privacy.
+     * @principle Enforces document ownership for all operations.
+     */
+    match /users/{userId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+          return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && request.resource.data.id == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Grants access to project data only to the owning user.
+     * @path /users/{userId}/projects/{projectId}
+     * @allow (create) - Allows a user to create a project under their user ID.
+     * @allow (get, list, update, delete) - Allows a user to read, list, update, and delete their own projects.
+     * @deny (create) - Denies project creation if the user ID does not match the auth ID.
+     * @principle Enforces document ownership and validates relational integrity.
+     */
+    match /users/{userId}/projects/{projectId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Grants access to story data only to the owning user within a specific project.
+     * @path /users/{userId}/projects/{projectId}/stories/{storyId}
+     * @allow (create) - Allows a user to create a story under their project.
+     * @allow (get, list, update, delete) - Allows a user to read, list, update, and delete their own stories.
+     * @deny (create) - Denies story creation if the user ID or project ID does not match.
+     * @principle Enforces document ownership and validates relational integrity.
+     */
+    match /users/{userId}/projects/{projectId}/stories/{storyId} {
+      function isOwner(userId) {
+        return request.auth != null && request.auth.uid == userId;
+      }
+
+      function isExistingOwner(userId) {
+        return isOwner(userId) && resource != null;
+      }
+
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && request.resource.data.projectId == projectId;
+      allow update: if isExistingOwner(userId) && request.resource.data.projectId == resource.data.projectId;
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Grants public read access to tags but restricts write access.
+     * @path /tags/{tagId}
+     * @allow (get, list) - Allows any user to read and list tags.
+     * @deny (create, update, delete) - Denies tag creation, update, and deletion for all users.
+     * @principle Grants public read access with restricted write access.
+     */
+    match /tags/{tagId} {
+      allow get, list: if true;
+      allow create, update, delete: if false;
+    }
+  }
+}

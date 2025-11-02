@@ -1,0 +1,200 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the AIgility application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user.",
+          "format": "email"
+        }
+      },
+      "required": [
+        "id",
+        "email"
+      ]
+    },
+    "Project": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Project",
+      "type": "object",
+      "description": "Represents a project within the AIgility application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Project entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Project)"
+        },
+        "title": {
+          "type": "string",
+          "description": "Title of the project."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the project."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "title",
+        "description"
+      ]
+    },
+    "Story": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Story",
+      "type": "object",
+      "description": "Represents a user story within a project.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Story entity."
+        },
+        "projectId": {
+          "type": "string",
+          "description": "Reference to Project. (Relationship: Project 1:N Story)"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the user story."
+        },
+        "tagIds": {
+          "type": "array",
+          "description": "References to Tags. (Relationship: Tag N:N Story)",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the story was created."
+        }
+      },
+      "required": [
+        "id",
+        "projectId",
+        "description",
+        "createdAt"
+      ]
+    },
+    "Tag": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Tag",
+      "type": "object",
+      "description": "Represents a tag that can be associated with user stories.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Tag entity."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the tag."
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profile information. Uses path-based ownership for private user data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/projects/{projectId}",
+        "definition": {
+          "entityName": "Project",
+          "schema": {
+            "$ref": "#/backend/entities/Project"
+          },
+          "description": "Stores project data for a specific user. Uses path-based ownership. Includes denormalized 'userId' to ensure Authorization Independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "projectId",
+              "description": "The unique identifier for the project."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/projects/{projectId}/stories/{storyId}",
+        "definition": {
+          "entityName": "Story",
+          "schema": {
+            "$ref": "#/backend/entities/Story"
+          },
+          "description": "Stores user stories for a specific project. Uses path-based ownership. Includes denormalized 'userId' and 'projectId' to ensure Authorization Independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier for the user."
+            },
+            {
+              "name": "projectId",
+              "description": "The unique identifier for the project."
+            },
+            {
+              "name": "storyId",
+              "description": "The unique identifier for the story."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/tags/{tagId}",
+        "definition": {
+          "entityName": "Tag",
+          "schema": {
+            "$ref": "#/backend/entities/Tag"
+          },
+          "description": "Stores all tags.",
+          "params": [
+            {
+              "name": "tagId",
+              "description": "The unique identifier for the tag."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure is designed to ensure security, scalability, and ease of debugging, following the principles of Authorization Independence, Clarity of Intent, DBAC, and QAPs. User data is stored under `/users/{userId}` for private access. Projects, Stories, and Tags are organized to maintain clear ownership and relationships. Project data is stored under the path `/users/{userId}/projects/{projectId}`. This allows for simple path-based ownership security rules. Story data is stored under the path `/users/{userId}/projects/{projectId}/stories/{storyId}`. This structure is suitable for the 1:N relationship between Projects and Stories. Tags are stored in a root-level `/tags` collection since they could be global or, if project-specific, can be nested under projects (e.g., `/users/{userId}/projects/{projectId}/tags/{tagId}`). The `Story.tagIds` array facilitates the N:N relationship between Stories and Tags, avoiding complex subcollection queries. This design achieves Authorization Independence by utilizing path-based ownership, thus avoiding the need for `get()` calls in security rules to validate ownership. The structure supports QAPs by ensuring that listing operations can be securely performed at each level of the hierarchy, based on user ID."
+  }
+}

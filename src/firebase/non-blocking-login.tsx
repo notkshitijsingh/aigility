@@ -1,0 +1,42 @@
+'use client';
+import {
+  Auth, // Import Auth type for type hinting
+  signInAnonymously,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  updateProfile,
+  // Assume getAuth and app are initialized elsewhere
+} from 'firebase/auth';
+
+/** Initiate anonymous sign-in (non-blocking). */
+export function initiateAnonymousSignIn(authInstance: Auth): void {
+  // CRITICAL: Call signInAnonymously directly. Do NOT use 'await signInAnonymously(...)'.
+  signInAnonymously(authInstance);
+  // Code continues immediately. Auth state change is handled by onAuthStateChanged listener.
+}
+
+/** Initiate email/password sign-up (non-blocking). */
+export function initiateEmailSignUp(authInstance: Auth, email: string, password: string, displayName: string): void {
+  // CRITICAL: Call createUserWithEmailAndPassword directly. Do NOT use 'await createUserWithEmailAndPassword(...)'.
+  createUserWithEmailAndPassword(authInstance, email, password)
+    .then(userCredential => {
+        // Once the user is created, update their profile with the display name.
+        // This is also non-blocking.
+        if (userCredential.user) {
+            updateProfile(userCredential.user, { displayName });
+        }
+    })
+    .catch(error => {
+        // Errors from signup are handled by the global onAuthStateChanged listener's error callback
+        // or can be caught here for specific UI feedback if needed.
+        console.error("Sign up error:", error);
+    });
+  // Code continues immediately. Auth state change is handled by onAuthStateChanged listener.
+}
+
+/** Initiate email/password sign-in (non-blocking). */
+export function initiateEmailSignIn(authInstance: Auth, email: string, password: string): void {
+  // CRITICAL: Call signInWithEmailAndPassword directly. Do NOT use 'await signInWithEmailAndPassword(...)'.
+  signInWithEmailAndPassword(authInstance, email, password);
+  // Code continues immediately. Auth state change is handled by onAuthStateChanged listener.
+}
