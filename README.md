@@ -24,8 +24,6 @@
 
 ## About The Project
 
-![aigility-screenshot](https://raw.githubusercontent.com/firebase/studio-demo-project-aigility/main/docs/aigility-screenshot.png)
-
 **aigility** is a modern, AI-enhanced project management tool built to streamline your development workflow. It moves beyond traditional project boards by integrating Google's Gemini AI to assist with creating, refining, and managing user stories. From generating multiple stories based on a single idea to improving the clarity of a story, `aigility` acts as your intelligent co-pilot, saving you time and improving the quality of your project backlog.
 
 This application is built with a powerful, modern tech stack, showcasing a seamless integration between a Next.js frontend and a serverless Firebase backend, with all AI capabilities powered by Genkit.
@@ -75,7 +73,7 @@ To get a local copy up and running, follow these simple steps.
 
 1.  **Clone the repository:**
     ```sh
-    git clone https://github.com/your-username/aigility.git
+    git clone https://github.com/notkshitijsingh/aigility.git
     cd aigility
     ```
 
@@ -113,7 +111,7 @@ Vercel deployment is easiest when linked to a Git repository.
 2.  **Create a GitHub Repository:** Go to [GitHub](https://github.com/new) and create a new repository. Do **not** initialize it with a README or .gitignore file, as you already have those.
 3.  **Link and Push:** Follow the instructions on GitHub to link your local repository to the remote one and push your code. It will look something like this:
     ```bash
-    git remote add origin <YOUR_GITHUB_REPOSITORY_URL>
+    git remote add origin [YOUR_REPOSITORY_URL]
     git branch -M main
     git push -u origin main
     ```
