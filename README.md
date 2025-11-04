@@ -1,10 +1,4 @@
 <div align="center">
-  <br />
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/firebase/studio-demo-project-aigility/main/docs/aigility-logo-dark.svg">
-    <img alt="aigility Logo" src="https://raw.githubusercontent.com/firebase/studio-demo-project-aigility/main/docs/aigility-logo-light.svg" width="200">
-  </picture>
-  <br />
   <h1 align="center">aigility</h1>
   <p align="center">
     Your AI-Powered Project Management Co-Pilot
