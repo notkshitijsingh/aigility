@@ -1,7 +1,10 @@
+export type Priority = 'Highest' | 'High' | 'Medium' | 'Low' | 'Lowest';
+
 export interface UserStory {
   id: string;
   description: string;
   tags: string[];
+  priority: Priority;
   projectId?: string;
   createdAt: any; // Can be Timestamp or FieldValue
 }

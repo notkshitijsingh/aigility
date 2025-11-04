@@ -4,11 +4,13 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { useUser, useFirestore, useMemoFirebase } from '@/firebase';
 import { collection, doc, writeBatch, arrayUnion, arrayRemove, deleteDoc, onSnapshot, getDocs, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { useCollection } from '@/firebase/firestore/use-collection';
-import type { Project as ProjectData, UserStory as UserStoryData } from '@/lib/data';
+import type { Project as ProjectData, UserStory as UserStoryData, Priority } from '@/lib/data';
 import { addDocumentNonBlocking, deleteDocumentNonBlocking, updateDocumentNonBlocking } from '@/firebase/non-blocking-updates';
+import type { GeneratedStory } from '@/ai/flows/generate-stories';
+
 
 // Exporting the types to be used in other components
-export type { ProjectData, UserStoryData };
+export type { ProjectData, UserStoryData, Priority };
 
 export type Project = ProjectData;
 export type UserStory = UserStoryData;
@@ -20,9 +22,10 @@ interface ProjectContextType {
   addProject: (project: Omit<Project, 'id' | 'userId' | 'stories' | 'order'>) => void;
   updateProject: (projectId: string, data: Partial<Omit<Project, 'id' | 'userId' | 'stories'>>) => void;
   deleteProject: (projectId: string) => void;
-  addStory: (projectId: string, story: Omit<UserStory, 'id' | 'projectId' | 'createdAt'>) => void;
+  addStory: (projectId: string, story: Omit<UserStory, 'id' | 'createdAt'>) => void;
   updateStory: (projectId: string, updatedStory: UserStory) => void;
-  addBulkStories: (projectId: string, newStories: string[], tags?: string[]) => void;
+  deleteStory: (projectId: string, storyId: string) => void;
+  addBulkStories: (projectId: string, newStories: GeneratedStory[], tags?: string[]) => void;
   bulkDeleteStories: (projectId: string, storyIds: string[]) => void;
   bulkUpdateTags: (projectId: string, storyIds: string[], tags: string[], action: 'add' | 'remove') => void;
   setProjectsOrder: (projects: Project[]) => void;
@@ -113,7 +116,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
     deleteDocumentNonBlocking(projectRef);
   };
 
-  const addStory = (projectId: string, storyData: Omit<UserStory, 'id' | 'projectId' | 'createdAt'>) => {
+  const addStory = (projectId: string, storyData: Omit<UserStory, 'id' | 'createdAt'>) => {
     if (!user || !firestore) return;
     const projectRef = doc(firestore, `users/${user.uid}/projects`, projectId);
     const storiesColRef = collection(projectRef, 'stories');
@@ -126,15 +129,22 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
     const { id, ...storyData } = updatedStory;
     updateDocumentNonBlocking(storyRef, storyData);
   };
+
+  const deleteStory = (projectId: string, storyId: string) => {
+    if (!user || !firestore) return;
+    const storyRef = doc(firestore, `users/${user.uid}/projects/${projectId}/stories`, storyId);
+    deleteDocumentNonBlocking(storyRef);
+  };
   
-  const addBulkStories = (projectId: string, newStories: string[], tags: string[] = []) => {
+  const addBulkStories = (projectId: string, newStories: GeneratedStory[], tags: string[] = []) => {
     if(!user) return;
     const baseTags = ['generated'];
     const finalTags = [...new Set([...baseTags, ...tags])]; // Combine and remove duplicates
 
-    newStories.forEach(desc => {
+    newStories.forEach(story => {
       addStory(projectId, {
-        description: desc,
+        description: story.description,
+        priority: story.priority,
         tags: finalTags,
       });
     });
@@ -176,7 +186,7 @@ export const ProjectProvider = ({ children }: { children: ReactNode }) => {
 
 
   return (
-    <ProjectContext.Provider value={{ projects, loading: isLoading, addProject, updateProject, deleteProject, addStory, updateStory, addBulkStories, bulkDeleteStories, bulkUpdateTags, setProjectsOrder }}>
+    <ProjectContext.Provider value={{ projects, loading: isLoading, addProject, updateProject, deleteProject, addStory, updateStory, deleteStory, addBulkStories, bulkDeleteStories, bulkUpdateTags, setProjectsOrder }}>
       {children}
     </ProjectContext.Provider>
   );

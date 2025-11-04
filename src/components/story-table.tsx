@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import type { Project, UserStory } from '@/context/project-context';
+import type { Project, UserStory, Priority } from '@/context/project-context';
 import { useProjects } from '@/context/project-context';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,12 +13,13 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Plus, Bot, Sparkles, MoreVertical } from 'lucide-react';
+import { Plus, Bot, Sparkles, MoreVertical, ArrowUp, ArrowDown, ChevronsUp, ChevronsDown, Equal, ArrowUpDown, Trash2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu';
 import { ScrollArea } from './ui/scroll-area';
 import {
@@ -29,6 +30,16 @@ import {
     DialogHeader,
     DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -37,18 +48,44 @@ import React from 'react';
 import { TagPopover } from './tag-popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { StoryBulkActions } from './story-bulk-actions';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
+import { cn } from '@/lib/utils';
+import type { GeneratedStory } from '@/ai/flows/generate-stories';
 
 interface StoryTableProps {
   project: Project;
   tagFilter: string[];
+  textFilter: string;
 }
 
-export function StoryTable({ project, tagFilter }: StoryTableProps) {
-  const { addStory, updateStory, addBulkStories, bulkDeleteStories, bulkUpdateTags } = useProjects();
+type SortKey = keyof UserStory | 'tags';
+type SortDirection = 'asc' | 'desc';
+interface SortConfig {
+  key: SortKey;
+  direction: SortDirection;
+}
+
+const priorityIcons: Record<Priority, React.ReactNode> = {
+  Highest: <ChevronsUp className="h-4 w-4 text-red-600" />,
+  High: <ArrowUp className="h-4 w-4 text-red-500" />,
+  Medium: <Equal className="h-4 w-4 text-yellow-500" />,
+  Low: <ArrowDown className="h-4 w-4 text-green-500" />,
+  Lowest: <ChevronsDown className="h-4 w-4 text-green-600" />,
+};
+const priorities: Priority[] = ['Highest', 'High', 'Medium', 'Low', 'Lowest'];
+const priorityOrder: Record<Priority, number> = {
+    'Highest': 0, 'High': 1, 'Medium': 2, 'Low': 3, 'Lowest': 4
+};
+
+
+export function StoryTable({ project, tagFilter, textFilter }: StoryTableProps) {
+  const { addStory, updateStory, addBulkStories, bulkDeleteStories, bulkUpdateTags, deleteStory } = useProjects();
   const [isAddModalOpen, setAddModalOpen] = useState(false);
   const [refiningStory, setRefiningStory] = useState<UserStory | null>(null);
   const [generatingFromStory, setGeneratingFromStory] = useState<UserStory | null>(null);
+  const [deletingStory, setDeletingStory] = useState<UserStory | null>(null);
   const [selectedStoryIds, setSelectedStoryIds] = useState<string[]>([]);
+  const [sortConfig, setSortConfig] = useState<SortConfig | null>({ key: 'createdAt', direction: 'desc' });
   
   const allTags = useMemo(() => {
     const tagSet = new Set<string>();
@@ -58,19 +95,71 @@ export function StoryTable({ project, tagFilter }: StoryTableProps) {
     return Array.from(tagSet);
   }, [project.stories]);
 
-  const filteredStories = useMemo(() => {
-    if (tagFilter.length === 0) {
-      return project.stories;
+  const sortedAndFilteredStories = useMemo(() => {
+    let stories = [...project.stories];
+
+    if (tagFilter.length > 0) {
+      stories = stories.filter(story => 
+        tagFilter.every(filterTag => story.tags.includes(filterTag))
+      );
     }
-    return project.stories.filter(story => 
-      tagFilter.every(filterTag => story.tags.includes(filterTag))
-    );
-  }, [project.stories, tagFilter]);
+
+    if (textFilter) {
+      stories = stories.filter(story =>
+        story.description.toLowerCase().includes(textFilter.toLowerCase())
+      );
+    }
+    
+    if (sortConfig) {
+        stories.sort((a, b) => {
+            let aValue, bValue;
+            
+            if (sortConfig.key === 'priority') {
+                aValue = priorityOrder[a.priority];
+                bValue = priorityOrder[b.priority];
+            } else if (sortConfig.key === 'tags') {
+                aValue = a.tags.join(', ');
+                bValue = b.tags.join(', ');
+            } else if (sortConfig.key === 'createdAt') {
+                const aDate = a.createdAt?.toDate ? a.createdAt.toDate() : 0;
+                const bDate = b.createdAt?.toDate ? b.createdAt.toDate() : 0;
+                aValue = aDate;
+                bValue = bDate;
+            } else {
+                aValue = a[sortConfig.key as keyof UserStory];
+                bValue = b[sortConfig.key as keyof UserStory];
+            }
+
+            if (aValue < bValue) {
+                return sortConfig.direction === 'asc' ? -1 : 1;
+            }
+            if (aValue > bValue) {
+                return sortConfig.direction === 'asc' ? 1 : -1;
+            }
+            return 0;
+        });
+    }
+
+    return stories;
+  }, [project.stories, tagFilter, textFilter, sortConfig]);
+
+  const handleSort = (key: SortKey) => {
+    if (sortConfig && sortConfig.key === key) {
+        if (sortConfig.direction === 'desc') {
+             setSortConfig({ key, direction: 'asc' });
+        } else {
+            setSortConfig({ key: 'createdAt', direction: 'desc' });
+        }
+    } else {
+        setSortConfig({ key, direction: 'desc' });
+    }
+  };
+
 
   // Reset selection when filter changes
   useEffect(() => {
     setSelectedStoryIds([]);
-  }, [tagFilter]);
+  }, [tagFilter, textFilter]);
 
 
   const handleAddStory = (newStoryData: Omit<UserStory, 'id' | 'createdAt'>) => {
@@ -81,13 +170,13 @@ export function StoryTable({ project, tagFilter }: StoryTableProps) {
     updateStory(project.id, updatedStory);
   };
   
-  const handleGenerateStories = (baseStory: UserStory, newStories: string[]) => {
+  const handleGenerateStories = (baseStory: UserStory, newStories: GeneratedStory[]) => {
     addBulkStories(project.id, newStories);
   };
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
-      setSelectedStoryIds(filteredStories.map(s => s.id));
+      setSelectedStoryIds(sortedAndFilteredStories.map(s => s.id));
     } else {
       setSelectedStoryIds([]);
     }
@@ -101,10 +190,24 @@ export function StoryTable({ project, tagFilter }: StoryTableProps) {
     }
   }
 
+  const handlePriorityChange = (story: UserStory, priority: Priority) => {
+    updateStory(project.id, { ...story, priority });
+  }
+
+  const renderSortIndicator = (key: SortKey) => {
+    if (!sortConfig || sortConfig.key !== key || (sortConfig.key === 'createdAt' && sortConfig.direction === 'desc' && key === 'createdAt') ) {
+        return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/50" />;
+    }
+    return sortConfig.direction === 'asc' ? (
+        <ArrowUp className="ml-2 h-4 w-4" />
+    ) : (
+        <ArrowDown className="ml-2 h-4 w-4" />
+    );
+};
+
   const numSelected = selectedStoryIds.length;
-  const numFiltered = filteredStories.length;
+  const numFiltered = sortedAndFilteredStories.length;
   const areAllSelected = numSelected > 0 && numSelected === numFiltered;
-  const areSomeSelected = numSelected > 0 && numSelected < numFiltered;
 
   return (
     <>
@@ -141,14 +244,27 @@ export function StoryTable({ project, tagFilter }: StoryTableProps) {
                     aria-label="Select all"
                   />
                 </TableHead>
-                <TableHead className="w-[65%]">Story</TableHead>
-                <TableHead>Tags</TableHead>
+                <TableHead className="w-[55%]">
+                    <Button variant="ghost" onClick={() => handleSort('description')} className="px-2">
+                        Story {renderSortIndicator('description')}
+                    </Button>
+                </TableHead>
+                <TableHead>
+                     <Button variant="ghost" onClick={() => handleSort('priority')} className="px-2">
+                        Priority {renderSortIndicator('priority')}
+                     </Button>
+                </TableHead>
+                <TableHead>
+                    <Button variant="ghost" onClick={() => handleSort('tags')} className="px-2">
+                        Tags {renderSortIndicator('tags')}
+                    </Button>
+                </TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredStories && filteredStories.length > 0 ? (
-                filteredStories.map((story) => (
+              {sortedAndFilteredStories && sortedAndFilteredStories.length > 0 ? (
+                sortedAndFilteredStories.map((story) => (
                   <TableRow key={story.id} data-state={selectedStoryIds.includes(story.id) ? 'selected' : ''}>
                      <TableCell>
                       <Checkbox
@@ -158,6 +274,26 @@ export function StoryTable({ project, tagFilter }: StoryTableProps) {
                       />
                     </TableCell>
                     <TableCell className="font-medium">{story.description}</TableCell>
+                    <TableCell>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" className="flex items-center gap-2 px-2">
+                                    {priorityIcons[story.priority]}
+                                    <span className="hidden md:inline">{story.priority}</span>
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                {priorities.map(p => (
+                                    <DropdownMenuItem key={p} onSelect={() => handlePriorityChange(story, p)}>
+                                        <div className="flex items-center gap-2">
+                                            {priorityIcons[p]}
+                                            <span>{p}</span>
+                                        </div>
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap items-center gap-1">
                         {story.tags.map((tag) => (
@@ -192,6 +328,11 @@ export function StoryTable({ project, tagFilter }: StoryTableProps) {
                             <Bot className="mr-2 h-4 w-4 text-primary" />
                             Generate More
                           </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => setDeletingStory(story)} className="text-destructive">
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete Story
+                          </DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </TableCell>
@@ -199,7 +340,7 @@ export function StoryTable({ project, tagFilter }: StoryTableProps) {
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={4} className="h-24 text-center">
+                  <TableCell colSpan={5} className="h-24 text-center">
                     No stories match the current filter.
                   </TableCell>
                 </TableRow>
@@ -228,6 +369,29 @@ export function StoryTable({ project, tagFilter }: StoryTableProps) {
           onGenerate={handleGenerateStories}
         />
       )}
+      {deletingStory && (
+        <AlertDialog open onOpenChange={() => setDeletingStory(null)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete the story:
+                        <br />
+                        <span className="font-medium mt-2 inline-block">"{deletingStory.description}"</span>
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction 
+                        onClick={() => deleteStory(project.id, deletingStory.id)}
+                        className="bg-destructive hover:bg-destructive/90"
+                    >
+                        Delete
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+      )}
     </>
   );
 }
@@ -239,13 +403,15 @@ const AddStoryModal = ({ isOpen, onClose, onAddStory }: {
 }) => {
   const [description, setDescription] = useState('');
   const [tags, setTags] = useState('');
+  const [priority, setPriority] = useState<Priority>('Medium');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!description) return;
-    onAddStory({ description, tags: tags.split(',').map(t => t.trim()).filter(Boolean) });
+    onAddStory({ description, tags: tags.split(',').map(t => t.trim()).filter(Boolean), priority });
     setDescription('');
     setTags('');
+    setPriority('Medium');
     onClose();
   };
   return (
@@ -264,11 +430,28 @@ const AddStoryModal = ({ isOpen, onClose, onAddStory }: {
               rows={4}
               required
             />
-            <Input 
-              placeholder="Tags (comma-separated), e.g., UI, auth, performance"
-              value={tags}
-              onChange={e => setTags(e.target.value)}
-            />
+            <div className="grid grid-cols-2 gap-4">
+                <Input 
+                placeholder="Tags (comma-separated), e.g., UI, auth"
+                value={tags}
+                onChange={e => setTags(e.target.value)}
+                />
+                <Select value={priority} onValueChange={(v: Priority) => setPriority(v)}>
+                    <SelectTrigger>
+                        <SelectValue placeholder="Select priority" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {priorities.map(p => (
+                            <SelectItem key={p} value={p}>
+                               <div className="flex items-center gap-2">
+                                 {priorityIcons[p]}
+                                 <span>{p}</span>
+                               </div>
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
@@ -348,7 +531,7 @@ const RefineStoryModal = ({ story, onClose, onSave }: {
 const GenerateStoriesModal = ({ story, onClose, onGenerate }: {
     story: UserStory;
     onClose: () => void;
-    onGenerate: (story: UserStory, newStories: string[]) => void;
+    onGenerate: (story: UserStory, newStories: GeneratedStory[]) => void;
 }) => {
   const [numStories, setNumStories] = useState(3);
   const [isLoading, setIsLoading] = useState(false);

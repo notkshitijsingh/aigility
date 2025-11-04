@@ -18,9 +18,11 @@ export default function RegisterPage() {
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleRegister = (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     initiateEmailSignUp(auth, email, password, displayName);
   };
 
@@ -28,8 +30,12 @@ export default function RegisterPage() {
     if (!isUserLoading && user) {
       router.push('/dashboard');
     }
+    if (!isUserLoading && !user) {
+        setIsSubmitting(false);
+    }
   }, [user, isUserLoading, router]);
 
+  const isLoading = isUserLoading || isSubmitting;
 
   return (
     <Card className="w-full max-w-sm">
@@ -51,8 +57,8 @@ export default function RegisterPage() {
             <Label htmlFor="password">Password</Label>
             <Input id="password" type="password" placeholder="e.g. ilovemydog123" required value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
-          <Button type="submit" className="w-full bg-accent hover:bg-accent/90" disabled={isUserLoading}>
-            {isUserLoading ? <Loader2 className="animate-spin" /> : 'Register'}
+          <Button type="submit" className="w-full bg-accent hover:bg-accent/90" disabled={isLoading}>
+            {isLoading ? <Loader2 className="animate-spin" /> : 'Register'}
           </Button>
         </form>
       </CardContent>

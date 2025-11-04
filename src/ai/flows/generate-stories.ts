@@ -12,6 +12,12 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import type { Priority } from '@/lib/data';
+
+const GeneratedStorySchema = z.object({
+  description: z.string().describe('The user story description.'),
+  priority: z.enum(['Highest', 'High', 'Medium', 'Low', 'Lowest']).describe('The priority of the user story.'),
+});
 
 const GenerateStoriesInputSchema = z.object({
   existingStory: z.string().describe('The existing user story to generate from.'),
@@ -21,10 +27,12 @@ const GenerateStoriesInputSchema = z.object({
 export type GenerateStoriesInput = z.infer<typeof GenerateStoriesInputSchema>;
 
 const GenerateStoriesOutputSchema = z.object({
-  newStories: z.array(z.string()).describe('An array of generated user stories.'),
+  newStories: z.array(GeneratedStorySchema).describe('An array of generated user stories with priorities.'),
 });
 
+export type GeneratedStory = z.infer<typeof GeneratedStorySchema>;
 export type GenerateStoriesOutput = z.infer<typeof GenerateStoriesOutputSchema>;
+
 
 export async function generateStories(input: GenerateStoriesInput): Promise<GenerateStoriesOutput> {
   return generateStoriesFlow(input);
@@ -34,22 +42,13 @@ const generateStoriesPrompt = ai.definePrompt({
   name: 'generateStoriesPrompt',
   input: {schema: GenerateStoriesInputSchema},
   output: {schema: GenerateStoriesOutputSchema},
-  prompt: `You are a product owner who is expert at writing user stories. Based on the following existing user story, generate {{numberOfStories}} new user stories.
+  prompt: `You are a product owner who is expert at writing user stories and assigning priorities. Based on the following existing user story, generate {{numberOfStories}} new user stories.
+
+For each story, provide a description and a priority from the following list: Highest, High, Medium, Low, Lowest.
 
 Existing User Story: {{{existingStory}}}
 
-New User Stories:
-
-{{#times numberOfStories}}
-- 
-{{/times}}`,
-  templateHelpers: {
-    times: function (n: number, block: any) {
-      let accum = '';
-      for (let i = 0; i < n; ++i) accum += block.fn(i);
-      return accum;
-    },
-  },
+Generate the new user stories with their priorities.`,
 });
 
 const generateStoriesFlow = ai.defineFlow(

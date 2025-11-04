@@ -69,6 +69,11 @@
           "type": "string",
           "description": "Description of the user story."
         },
+        "priority": {
+            "type": "string",
+            "description": "The priority of the user story.",
+            "enum": ["Highest", "High", "Medium", "Low", "Lowest"]
+        },
         "tagIds": {
           "type": "array",
           "description": "References to Tags. (Relationship: Tag N:N Story)",
@@ -86,6 +91,7 @@
         "id",
         "projectId",
         "description",
+        "priority",
         "createdAt"
       ]
     },
@@ -137,7 +143,7 @@
       {
         "path": "/users/{userId}/projects/{projectId}",
         "definition": {
-          "entityName": "Project",
+          "entity_name": "Project",
           "schema": {
             "$ref": "#/backend/entities/Project"
           },
@@ -157,7 +163,7 @@
       {
         "path": "/users/{userId}/projects/{projectId}/stories/{storyId}",
         "definition": {
-          "entityName": "Story",
+          "entity_name": "Story",
           "schema": {
             "$ref": "#/backend/entities/Story"
           },

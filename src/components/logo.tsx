@@ -23,7 +23,7 @@ export const Logo = ({ className }: { className?: string }) => {
         <path d="M14 9.5C13.5 8.5 12.5 8 12 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
         
       </svg>
-      <span className="font-headline text-xl font-bold">AIgility</span>
+      <span className="font-headline text-xl font-bold">aigility</span>
     </div>
   );
 };

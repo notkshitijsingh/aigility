@@ -20,6 +20,7 @@ import { Label } from '@/components/ui/label';
 import { MultiSelect, type MultiSelectOption } from '@/components/ui/multi-select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import type { GeneratedStory } from '@/ai/flows/generate-stories-from-project';
 
 export default function ProjectPage() {
   const { id } = useParams();
@@ -28,6 +29,7 @@ export default function ProjectPage() {
 
   const [isGenerateModalOpen, setGenerateModalOpen] = useState(false);
   const [selectedTags, setSelectedTags] = useState<MultiSelectOption[]>([]);
+  const [textFilter, setTextFilter] = useState('');
   
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [isEditingDesc, setIsEditingDesc] = useState(false);
@@ -66,14 +68,13 @@ export default function ProjectPage() {
   }
 
   const handleExport = () => {
-    const headers = 'Summary,Description,Labels,Issue Type,Created Date';
+    const headers = 'Summary,Description,Labels,Issue Type';
     const rows = project.stories.map(story => {
       const summary = `"${story.description.split('.').slice(0, 1).join('.').replace(/"/g, '""')}"`;
       const description = `"${story.description.replace(/"/g, '""')}"`;
       const labels = `"${(story.tags || []).join(' ')}"`;
       const issueType = 'Story';
-      const createdDate = story.createdAt?.toDate ? `"${story.createdAt.toDate().toISOString()}"` : '""';
-      return [summary, description, labels, issueType, createdDate].join(',');
+      return [summary, description, labels, issueType].join(',');
     });
 
     const csvContent = [headers, ...rows].join('\n');
@@ -90,7 +91,7 @@ export default function ProjectPage() {
     document.body.removeChild(link);
   };
 
-  const handleGenerateStories = (newStories: string[], tags: string[] = []) => {
+  const handleGenerateStories = (newStories: GeneratedStory[], tags: string[] = []) => {
     if (project) {
       addBulkStories(project.id, newStories, tags);
     }
@@ -139,7 +140,7 @@ export default function ProjectPage() {
             </Button>
         </div>
       </div>
-      <div className="mb-4">
+      <div className="mb-4 flex gap-4">
         <MultiSelect 
           options={allTags}
           selected={selectedTags}
@@ -147,9 +148,16 @@ export default function ProjectPage() {
           placeholder="Filter by tags..."
           className="w-full md:w-1/2"
         />
+        <Input
+            type="text"
+            placeholder="Search stories..."
+            value={textFilter}
+            onChange={(e) => setTextFilter(e.target.value)}
+            className="w-full md:w-1/2"
+        />
       </div>
       <div className="flex-grow overflow-hidden">
-        <StoryTable project={project} tagFilter={selectedTags.map(t => t.value)} />
+        <StoryTable project={project} tagFilter={selectedTags.map(t => t.value)} textFilter={textFilter} />
       </div>
 
       {isGenerateModalOpen && (
@@ -168,7 +176,7 @@ const GenerateStoriesModal = ({ project, allTags, onClose, onGenerate }: {
     project: any;
     allTags: MultiSelectOption[];
     onClose: () => void;
-    onGenerate: (newStories: string[], tags: string[]) => void;
+    onGenerate: (newStories: GeneratedStory[], tags: string[]) => void;
 }) => {
   const [numStories, setNumStories] = useState(3);
   const [selectedTags, setSelectedTags] = useState<MultiSelectOption[]>([]);

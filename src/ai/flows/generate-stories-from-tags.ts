@@ -11,6 +11,12 @@
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
+const GeneratedStorySchema = z.object({
+  description: z.string().describe('The user story description.'),
+  priority: z.enum(['Highest', 'High', 'Medium', 'Low', 'Lowest']).describe('The priority of the user story.'),
+});
+
+
 const GenerateStoriesFromTagsInputSchema = z.object({
   projectDescription: z.string().describe('The project description for context.'),
   tags: z.array(z.string()).describe('The tags to generate stories from.'),
@@ -20,9 +26,10 @@ const GenerateStoriesFromTagsInputSchema = z.object({
 export type GenerateStoriesFromTagsInput = z.infer<typeof GenerateStoriesFromTagsInputSchema>;
 
 const GenerateStoriesFromTagsOutputSchema = z.object({
-  newStories: z.array(z.string()).describe('An array of generated user stories.'),
+  newStories: z.array(GeneratedStorySchema).describe('An array of generated user stories with priorities.'),
 });
 
+export type GeneratedStory = z.infer<typeof GeneratedStorySchema>;
 export type GenerateStoriesFromTagsOutput = z.infer<typeof GenerateStoriesFromTagsOutputSchema>;
 
 export async function generateStoriesFromTags(input: GenerateStoriesFromTagsInput): Promise<GenerateStoriesFromTagsOutput> {
@@ -33,13 +40,15 @@ const generateStoriesFromTagsPrompt = ai.definePrompt({
   name: 'generateStoriesFromTagsPrompt',
   input: {schema: GenerateStoriesFromTagsInputSchema},
   output: {schema: GenerateStoriesFromTagsOutputSchema},
-  prompt: `You are a product owner who is an expert at writing user stories. Based on the following project description and tags, generate {{numberOfStories}} new user stories.
+  prompt: `You are a product owner who is an expert at writing user stories and assigning priorities. Based on the following project description and tags, generate {{numberOfStories}} new user stories.
+
+For each story, provide a description and a priority from the following list: Highest, High, Medium, Low, Lowest.
 
 Project Description: {{{projectDescription}}}
 
 Tags: {{#each tags}}{{{this}}}{{#unless @last}}, {{/unless}}{{/each}}
 
-Your response should be a list of user stories.`,
+Your response should be a list of user stories, each with a description and a priority.`,
 });
 
 const generateStoriesFromTagsFlow = ai.defineFlow(

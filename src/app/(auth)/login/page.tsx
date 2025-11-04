@@ -17,9 +17,11 @@ export default function LoginPage() {
   const { user, isUserLoading } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     initiateEmailSignIn(auth, email, password);
   };
 
@@ -27,13 +29,19 @@ export default function LoginPage() {
     if (!isUserLoading && user) {
       router.push('/dashboard');
     }
+    // If there's no user and loading is finished, it means login failed or was initiated.
+    // To handle login failures (e.g. wrong password), we can stop the submitting state.
+    if (!isUserLoading && !user) {
+        setIsSubmitting(false);
+    }
   }, [user, isUserLoading, router]);
 
+  const isLoading = isUserLoading || isSubmitting;
 
   return (
     <Card className="w-full max-w-sm">
       <CardHeader>
-        <CardTitle className="text-2xl font-headline">Welcome to AIgility</CardTitle>
+        <CardTitle className="text-2xl font-headline">Welcome to aigility</CardTitle>
         <CardDescription>Enter your credentials to access your projects.</CardDescription>
       </CardHeader>
       <CardContent>
@@ -46,8 +54,8 @@ export default function LoginPage() {
             <Label htmlFor="password">Password</Label>
             <Input id="password" type="password" placeholder="e.g. ilovemydog123" required value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
-          <Button type="submit" className="w-full bg-accent hover:bg-accent/90" disabled={isUserLoading}>
-            {isUserLoading ? <Loader2 className="animate-spin" /> : 'Login'}
+          <Button type="submit" className="w-full bg-accent hover:bg-accent/90" disabled={isLoading}>
+            {isLoading ? <Loader2 className="animate-spin" /> : 'Login'}
           </Button>
         </form>
       </CardContent>
